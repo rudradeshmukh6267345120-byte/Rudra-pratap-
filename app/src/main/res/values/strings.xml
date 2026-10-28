@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Glass Widgets</string>
+    <string name="widget_name">Glass Photo Widget</string>
+    <string name="widget_name_small">Glass Photo Widget (Small 2x2)</string>
+    <string name="widget_name_large">Glass Photo Widget (Large 4x4)</string>
+    <string name="widget_image_desc">Photo displayed on home screen widget</string>
+</resources>

@@ -1,0 +1,6 @@
+{
+  "name": "Glass Widgets - Android Photo Widget Studio",
+  "description": "Create premium glassmorphic photo widgets for your Android home screen with custom frames, borders, color tones, filters, and rotation schedules. Completely free with local storage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

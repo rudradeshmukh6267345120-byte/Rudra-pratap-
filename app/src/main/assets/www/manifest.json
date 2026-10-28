@@ -1,0 +1,19 @@
+{
+  "name": "Glass Widgets - Android Photo Studio",
+  "short_name": "Glass Widgets",
+  "description": "Pure OLED Black Photo Widgets for Android Home Screen",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "portrait",
+  "categories": ["personalization", "photo", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
