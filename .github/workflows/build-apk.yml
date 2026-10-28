@@ -1,0 +1,146 @@
+name: Build & Publish Debug APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Publish Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Verify Java installation
+        run: |
+          echo "=== Java Version ==="
+          java -version
+          echo "=== Java Compiler Version ==="
+          javac -version
+          echo "=== JAVA_HOME ==="
+          echo "JAVA_HOME=$JAVA_HOME"
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Create temporary debug keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore ./debug.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Build Debug APK
+        run: gradle :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Verify output APK
+        run: |
+          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "::error::Output APK not found at $APK_PATH"
+            exit 1
+          fi
+          if [ ! -s "$APK_PATH" ]; then
+            echo "::error::Output APK is empty at $APK_PATH"
+            exit 1
+          fi
+          echo "Output APK verified successfully:"
+          ls -lh "$APK_PATH"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Prepare release asset
+        run: |
+          REPO_NAME="${{ github.event.repository.name }}"
+          if [ -z "$REPO_NAME" ] || [ "$REPO_NAME" = "null" ]; then
+            REPO_NAME="$(basename "${{ github.repository }}")"
+          fi
+          if [ -z "$REPO_NAME" ] || [ "$REPO_NAME" = "null" ]; then
+            REPO_NAME="daily-walking-guide-apk"
+          fi
+
+          RELEASE_APK_NAME="${REPO_NAME}-debug-build-${{ github.run_number }}.apk"
+          RELEASE_APK_PATH="${RUNNER_TEMP}/${RELEASE_APK_NAME}"
+
+          cp "app/build/outputs/apk/debug/app-debug.apk" "$RELEASE_APK_PATH"
+          echo "RELEASE_APK_NAME=${RELEASE_APK_NAME}" >> "$GITHUB_ENV"
+          echo "RELEASE_APK_PATH=${RELEASE_APK_PATH}" >> "$GITHUB_ENV"
+          echo "Prepared release asset: ${RELEASE_APK_NAME}"
+
+      - name: Publish GitHub Release
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="debug-apk-build-${{ github.run_number }}-${{ github.run_attempt }}"
+          RELEASE_TITLE="Debug APK Build #${{ github.run_number }}"
+          
+          RELEASE_NOTES=$(cat <<EOF
+          ### Debug APK Build #${{ github.run_number }}
+          
+          - **Repository:** ${{ github.repository }}
+          - **Branch:** ${{ github.ref_name }}
+          - **Commit:** ${{ github.sha }}
+          - **Run Number:** ${{ github.run_number }} (Attempt ${{ github.run_attempt }})
+          - **Asset:** \`${RELEASE_APK_NAME}\`
+          
+          #### Installation
+          1. Download \`${RELEASE_APK_NAME}\` on your Android device.
+          2. Open your Downloads and tap the APK to install.
+          3. If prompted by Android, allow installation from unknown sources.
+          EOF
+          )
+
+          gh release create "$TAG_NAME" "$RELEASE_APK_PATH" \
+            --target "${{ github.sha }}" \
+            --title "$RELEASE_TITLE" \
+            --notes "$RELEASE_NOTES" \
+            --latest
+
+      - name: Report build and release status
+        if: always()
+        run: |
+          echo "## 📱 Debug APK Build & Release Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Job Status:** \`${{ job.status }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Repository:** \`${{ github.repository }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Branch:** \`${{ github.ref_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Run Number:** \`${{ github.run_number }}\` (Attempt \`${{ github.run_attempt }}\`)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "### ✅ Artifacts & Release" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Workflow Artifact:** \`app-debug-apk\` (contains \`app-debug.apk\`)" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Release Tag:** \`debug-apk-build-${{ github.run_number }}-${{ github.run_attempt }}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Release Asset:** \`${RELEASE_APK_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Direct APK download is available on the GitHub Releases page for \`${{ github.repository }}\`." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ⚠️ Build or Release Note" >> "$GITHUB_STEP_SUMMARY"
+            echo "The build did not complete successfully. Check the step logs above for detailed diagnostic information." >> "$GITHUB_STEP_SUMMARY"
+          fi
