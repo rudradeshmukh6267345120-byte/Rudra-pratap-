@@ -52,8 +52,13 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses 2>/dev/null || true
+
       - name: Create temporary debug keystore
         run: |
+          mkdir -p ~/.android
           if [ -f "./debug.keystore" ]; then
             echo "Existing debug keystore found at ./debug.keystore"
           else
@@ -72,7 +77,8 @@ jobs:
             echo "::error::Failed to create ./debug.keystore"
             exit 1
           fi
-          echo "Debug keystore ready."
+          cp ./debug.keystore ~/.android/debug.keystore
+          echo "Debug keystore configured successfully at ./debug.keystore and ~/.android/debug.keystore"
 
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon
