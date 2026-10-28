@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -56,6 +58,9 @@ jobs:
         run: |
           yes | sdkmanager --licenses 2>/dev/null || true
 
+      - name: Ensure gradlew is executable
+        run: chmod +x gradlew || true
+
       - name: Create temporary debug keystore
         run: |
           mkdir -p ~/.android
@@ -81,7 +86,12 @@ jobs:
           echo "Debug keystore configured successfully at ./debug.keystore and ~/.android/debug.keystore"
 
       - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace --no-daemon
+        run: |
+          if [ -x "./gradlew" ]; then
+            ./gradlew :app:assembleDebug --stacktrace --no-daemon
+          else
+            gradle :app:assembleDebug --stacktrace --no-daemon
+          fi
 
       - name: Verify the APK
         run: |
@@ -105,7 +115,7 @@ jobs:
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
+          name: glass-widgets-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
@@ -195,11 +205,11 @@ jobs:
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "- **Asset Filename:** \`app-debug.apk\`" >> "$GITHUB_STEP_SUMMARY"
             echo "- **Release Tag:** \`${RELEASE_TAG}\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Backup:** The GitHub Actions artifact \`app-debug-apk\` remains available as a backup." >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Artifact:** \`glass-widgets-debug-apk\` uploaded to GitHub Actions artifacts." >> "$GITHUB_STEP_SUMMARY"
             
             echo "--- Release Details ---"
             gh release view "$RELEASE_TAG" --json tagName,title,url,assets || true
           else
             echo "### ⚠️ Release Publishing Warning" >> "$GITHUB_STEP_SUMMARY"
-            echo "GitHub Release creation was not completed. If the build step succeeded, the backup artifact \`app-debug-apk\` remains fully available in GitHub Actions summary." >> "$GITHUB_STEP_SUMMARY"
+            echo "GitHub Release creation was not completed. If the build step succeeded, the backup artifact \`glass-widgets-debug-apk\` remains fully available in GitHub Actions summary." >> "$GITHUB_STEP_SUMMARY"
           fi

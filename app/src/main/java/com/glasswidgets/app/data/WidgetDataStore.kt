@@ -47,6 +47,7 @@ data class AppSavedWidget(
     val borderColor: String,
     val borderWidthPx: Int,
     val borderEnabled: Boolean,
+    val borderGlow: Boolean = true,
     val filterTone: String,
     val filterIntensity: Int,
     val textureType: String,
@@ -133,6 +134,7 @@ object WidgetDataStore {
                 val borderEnabled = borderObj?.optBoolean("enabled", true) ?: true
                 val borderColor = borderObj?.optString("color", "#ffffff") ?: "#ffffff"
                 val borderWidthPx = borderObj?.optInt("width", 4) ?: 4
+                val borderGlow = borderObj?.optBoolean("glow", true) ?: true
 
                 val filterObj = obj.optJSONObject("filter")
                 val filterTone = filterObj?.optString("tone", "original") ?: "original"
@@ -187,6 +189,7 @@ object WidgetDataStore {
                         borderColor = borderColor,
                         borderWidthPx = borderWidthPx,
                         borderEnabled = borderEnabled,
+                        borderGlow = borderGlow,
                         filterTone = filterTone,
                         filterIntensity = filterIntensity,
                         textureType = textureType,

@@ -32,6 +32,7 @@ android {
             // Set isDebuggable to false so Google Play Protect does not flag the sideloaded APK
             isDebuggable = false
             applicationIdSuffix = ""
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
