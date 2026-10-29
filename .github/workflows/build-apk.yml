@@ -54,9 +54,12 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Accept Android SDK licenses
+      - name: Configure Android SDK and licenses
         run: |
+          echo "Accepting Android SDK licenses..."
           yes | sdkmanager --licenses 2>/dev/null || true
+          echo "Verifying Android SDK platform 35 and build-tools..."
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" 2>/dev/null || true
 
       - name: Ensure gradlew is executable
         run: chmod +x gradlew || true
@@ -132,6 +135,7 @@ jobs:
           fi
 
           echo "release_asset_path=${RELEASE_ASSET_PATH}" >> "$GITHUB_OUTPUT"
+          echo "release_dir=${TEMP_RELEASE_DIR}" >> "$GITHUB_OUTPUT"
           echo "Prepared release asset: ${RELEASE_ASSET_PATH}"
 
       - name: Publish APK to GitHub Releases
@@ -143,6 +147,7 @@ jobs:
           gh --version
           
           ASSET_PATH="${{ steps.prepare_asset.outputs.release_asset_path }}"
+          RELEASE_DIR="${{ steps.prepare_asset.outputs.release_dir }}"
           if [ ! -f "$ASSET_PATH" ] || [ ! -s "$ASSET_PATH" ]; then
             echo "::error::Prepared APK asset is missing or empty."
             exit 1
@@ -159,26 +164,23 @@ jobs:
 
           RELEASE_TAG="debug-apk-build-${{ github.run_number }}-${{ github.run_attempt }}"
           RELEASE_TITLE="Debug APK Build #${{ github.run_number }}"
-          
-          RELEASE_NOTES=$(cat <<EOF
-          ### Automatic Debug APK Build #${{ github.run_number }}
+          NOTES_FILE="${RELEASE_DIR}/release_notes.md"
+
+          cat > "$NOTES_FILE" << 'EOF'
+          ### Automatic Debug APK Build
 
           - **Build Type:** Automatically generated debug APK
           - **Builder:** GitHub Actions
-          - **Run Number:** ${{ github.run_number }}
-          - **Run Attempt:** ${{ github.run_attempt }}
-          - **Source Commit:** ${{ github.sha }}
           - **Notice:** This APK is signed with a temporary debug keystore and is intended for testing. It is not a production release.
 
           #### Direct Download
-          Download **\`app-debug.apk\`** below and install on your device.
+          Download **`app-debug.apk`** below and install on your Android device.
           EOF
-          )
 
           gh release create "$RELEASE_TAG" "$ASSET_PATH" \
             --target "${{ github.sha }}" \
             --title "$RELEASE_TITLE" \
-            --notes "$RELEASE_NOTES" \
+            --notes-file "$NOTES_FILE" \
             --latest
 
       - name: Report APK download result
@@ -193,23 +195,25 @@ jobs:
           echo "- **Commit:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
+          BUILD_OUTCOME="${{ steps.build.outcome }}"
           RELEASE_OUTCOME="${{ steps.publish_release.outcome }}"
-          
-          if [ "$RELEASE_OUTCOME" = "success" ]; then
-            RELEASE_TAG="debug-apk-build-${{ github.run_number }}-${{ github.run_attempt }}"
-            echo "### DIRECT APK DOWNLOAD" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "[Download app-debug.apk](https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk)" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+            echo "### ✅ APK Build Succeeded" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Artifact:** \`glass-widgets-debug-apk\` has been successfully uploaded." >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Direct Release Download:** [Download app-debug.apk](https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk)" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "\`https://github.com/${{ github.repository }}/releases/latest/download/app-debug.apk\`" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Asset Filename:** \`app-debug.apk\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Release Tag:** \`${RELEASE_TAG}\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Artifact:** \`glass-widgets-debug-apk\` uploaded to GitHub Actions artifacts." >> "$GITHUB_STEP_SUMMARY"
-            
-            echo "--- Release Details ---"
-            gh release view "$RELEASE_TAG" --json tagName,title,url,assets || true
+
+            if [ "$RELEASE_OUTCOME" = "success" ]; then
+              RELEASE_TAG="debug-apk-build-${{ github.run_number }}-${{ github.run_attempt }}"
+              echo "- **Release Tag:** \`${RELEASE_TAG}\`" >> "$GITHUB_STEP_SUMMARY"
+              gh release view "$RELEASE_TAG" --json tagName,title,url,assets || true
+            else
+              echo "ℹ️ Note: Release publishing step did not complete, but your built APK artifact \`glass-widgets-debug-apk\` is ready for download in GitHub Actions." >> "$GITHUB_STEP_SUMMARY"
+            fi
           else
-            echo "### ⚠️ Release Publishing Warning" >> "$GITHUB_STEP_SUMMARY"
-            echo "GitHub Release creation was not completed. If the build step succeeded, the backup artifact \`glass-widgets-debug-apk\` remains fully available in GitHub Actions summary." >> "$GITHUB_STEP_SUMMARY"
+            echo "### ❌ APK Build Failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "The build did not produce \`app/build/outputs/apk/debug/app-debug.apk\`. Review the build step logs above for details." >> "$GITHUB_STEP_SUMMARY"
           fi
